@@ -114,6 +114,7 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		final PlayerInteraction i = playerInteractions.getOrDefault(p.getName(), new PlayerInteraction(p.getName()));
 		i.setInteraction(InteractionState.OPENING_DOOR);
 		i.setTick(currentTick);
+		i.setLocation(p.getWorldLocation());
 
 		playerInteractions.put(p.getName(), i);
 	}
@@ -148,19 +149,36 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 			return;
 		}
 
-		final WorldPoint playerLocation = e.getPlayer().getWorldLocation();
 		final int since = client.getTickCount() - interaction.getTick();
+		if (since > TICK_THRESHOLD)
+		{
+			playerInteractions.remove(playerName);
+			return;
+		}
+
+		final WorldPoint playerLocation = interaction.getLocation();
+		final WorldPoint despawnLocation = e.getPlayer().getWorldLocation();
 		final Room currentRoom = Rooms.getRoom(currentFloor); // get local player room
 
 		// recent door open in the current room as the local player
-		if (since <= TICK_THRESHOLD && currentRoom != null && currentRoom.contains(playerLocation))
+		if (currentRoom != null && currentRoom.contains(playerLocation))
 		{
 			if (config.showChatMessage())
 			{
 				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Door opened by " + playerName, null);
 			}
 
+			// first try to find door near the recorded player location
 			Tile tile = findClosestDoor(playerLocation);
+
+			// if not found, try to find door near the despawn location
+			if (tile == null && !playerLocation.equals(despawnLocation))
+			{
+				log.debug("Player {} despawned at different location than interaction recorded ({} != {})", playerName, playerLocation, despawnLocation);
+				tile = findClosestDoor(despawnLocation);
+			}
+
+			// finally, set the hint arrow on the door
 			if (tile != null)
 			{
 				log.debug("Player {} opened a door ({} ticks since, dist: {})", playerName, since, playerLocation.distanceTo(tile.getWorldLocation()));
@@ -177,8 +195,25 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 
 	Tile findClosestDoor(WorldPoint playerLocation)
 	{
-		return getTilesToHighlight().values().stream()
-			.filter(tile -> tile != null && tile.getWorldLocation() != null)
+		Map<TileObject, Tile> tiles = getTilesToHighlight();
+
+		if (playerLocation == null || tiles.isEmpty())
+		{
+			log.error("Cannot find closest door - invalid player location or no door tiles");
+			return null;
+		}
+
+		return tiles.values().stream()
+			.filter(tile -> {
+				try
+				{
+					return tile != null && tile.getWorldLocation() != null;
+				}
+				catch (NullPointerException e)
+				{
+					return false;
+				}
+			})
 			.map(tile -> new Object()
 			{
 				final Tile t = tile;
@@ -229,6 +264,7 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		private final String playerName;
 		private InteractionState interaction;
 		private int tick;
+		private WorldPoint location;
 	}
 
 	private enum InteractionState
