@@ -155,7 +155,10 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		// recent door open in the current room as the local player
 		if (since <= TICK_THRESHOLD && currentRoom != null && currentRoom.contains(playerLocation))
 		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Door opened by " + playerName, null);
+			if (config.showChatMessage())
+			{
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Door opened by " + playerName, null);
+			}
 
 			Tile tile = findClosestDoor(playerLocation);
 			if (tile != null)

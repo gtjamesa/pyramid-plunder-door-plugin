@@ -8,12 +8,12 @@ import net.runelite.client.config.ConfigItem;
 public interface PyramidPlunderDoorsConfig extends Config
 {
 	@ConfigItem(
-		keyName = "greeting",
-		name = "Welcome Greeting",
-		description = "The message to show to the user when they login"
+		keyName = "showChatMessage",
+		name = "Show Chat Message",
+		description = "Add a chat message when another player has opened a door"
 	)
-	default String greeting()
+	default boolean showChatMessage()
 	{
-		return "Hello";
+		return true;
 	}
 }
