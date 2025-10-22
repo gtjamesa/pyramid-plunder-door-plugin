@@ -28,6 +28,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.NpcSpawned;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.api.events.PlayerSpawned;
 import net.runelite.api.events.VarbitChanged;
@@ -54,6 +55,7 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	private static final int TICK_THRESHOLD = 4;
 	private static final int TILE_THRESHOLD = 3;
 	private final HashMap<String, PlayerInteraction> playerInteractions = new HashMap<>();
+	private final HashMap<Integer, String> guardians = new HashMap<>();
 
 	static final Set<Integer> TOMB_DOOR_WALL_IDS = ImmutableSet.of(ObjectID.NTK_TOMB_DOOR1, ObjectID.NTK_TOMB_DOOR2, ObjectID.NTK_TOMB_DOOR3, ObjectID.NTK_TOMB_DOOR4);
 	static final Set<Integer> MUMMY_IDS = ImmutableSet.of(NpcID.NTK_MUMMY_1, NpcID.NTK_MUMMY_2, NpcID.NTK_MUMMY_3, NpcID.NTK_MUMMY_4, NpcID.NTK_MUMMY_5);
@@ -102,6 +104,7 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		{
 			playerInteractions.clear();
 			allDoors.clear();
+			guardians.clear();
 			clearActiveDoor();
 //			currentFloor = -1;
 		}
@@ -286,6 +289,21 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	public void onNpcSpawned(NpcSpawned e)
+	{
+		if (!isInPyramidPlunder())
+		{
+			return;
+		}
+
+		NPC npc = e.getNpc();
+		if (MUMMY_IDS.contains(npc.getId()) || SWARM_IDS.contains(npc.getId()))
+		{
+			guardians.put(npc.getIndex(), npc.getInteracting() != null ? npc.getInteracting().getName() : null);
+		}
+	}
+
 	@VisibleForTesting
 	boolean shouldDraw(Renderable renderable, boolean drawingUI)
 	{
@@ -314,7 +332,13 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 			}
 
 			// get player the npc is targeting and remove if not the local player
-			String targetPlayer = npc.getInteracting() != null ? npc.getInteracting().getName() : null;
+			// we'll use the tracked npc index as this will use the target at spawn time
+			// if we have no entry, we'll default to the current interacting target
+			String targetPlayer = guardians.getOrDefault(
+				npc.getIndex(),
+				npc.getInteracting() != null ? npc.getInteracting().getName() : null
+			);
+
 			return Objects.equals(targetPlayer, playerName);
 		}
 
