@@ -1,13 +1,16 @@
 package com.pyramidplunderdoors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Provides;
+import com.pyramidplunderdoors.config.RemoveNpc;
 import com.pyramidplunderdoors.data.Door;
 import com.pyramidplunderdoors.data.Room;
 import com.pyramidplunderdoors.data.Rooms;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import javax.inject.Inject;
 import lombok.Data;
@@ -16,7 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.NPC;
 import net.runelite.api.Player;
+import net.runelite.api.Renderable;
 import net.runelite.api.TileObject;
 import net.runelite.api.WallObject;
 import net.runelite.api.coords.WorldPoint;
@@ -31,6 +36,7 @@ import net.runelite.api.gameval.AnimationID;
 import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.ObjectID;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.client.callback.Hooks;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -69,18 +75,25 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	private Client client;
 
 	@Inject
+	private Hooks hooks;
+
+	private final Hooks.RenderableDrawListener drawListener = this::shouldDraw;
+
+	@Inject
 	private PyramidPlunderDoorsConfig config;
 
 	@Override
 	protected void startUp()
 	{
 		reset();
+		hooks.registerRenderableDrawListener(drawListener);
 	}
 
 	@Override
 	protected void shutDown()
 	{
 		reset();
+		hooks.unregisterRenderableDrawListener(drawListener);
 	}
 
 	private void reset()
@@ -271,6 +284,41 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		{
 			allDoors.put(object, new Door(object, event.getTile()));
 		}
+	}
+
+	@VisibleForTesting
+	boolean shouldDraw(Renderable renderable, boolean drawingUI)
+	{
+		if (renderable instanceof NPC && isInPyramidPlunder())
+		{
+			RemoveNpc removeNpc = config.removeNpcs();
+
+			// don't remove anything
+			if (removeNpc.equals(RemoveNpc.NONE))
+			{
+				return true;
+			}
+
+			NPC npc = (NPC) renderable;
+			final String playerName = client.getLocalPlayer().getName();
+
+			if (!MUMMY_IDS.contains(npc.getId()) && !SWARM_IDS.contains(npc.getId()))
+			{
+				return true;
+			}
+
+			// remove all npcs
+			if (removeNpc.equals(RemoveNpc.ALL))
+			{
+				return false;
+			}
+
+			// get player the npc is targeting and remove if not the local player
+			String targetPlayer = npc.getInteracting() != null ? npc.getInteracting().getName() : null;
+			return Objects.equals(targetPlayer, playerName);
+		}
+
+		return true;
 	}
 
 	@Subscribe
