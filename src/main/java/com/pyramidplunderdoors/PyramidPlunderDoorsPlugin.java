@@ -2,6 +2,7 @@ package com.pyramidplunderdoors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Provides;
+import com.pyramidplunderdoors.data.Door;
 import com.pyramidplunderdoors.data.Room;
 import com.pyramidplunderdoors.data.Rooms;
 import java.util.Comparator;
@@ -16,17 +17,18 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
-import net.runelite.api.Tile;
 import net.runelite.api.TileObject;
 import net.runelite.api.WallObject;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.api.events.PlayerSpawned;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.WallObjectSpawned;
 import net.runelite.api.gameval.AnimationID;
+import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.ObjectID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.config.ConfigManager;
@@ -48,11 +50,17 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	private final HashMap<String, PlayerInteraction> playerInteractions = new HashMap<>();
 
 	static final Set<Integer> TOMB_DOOR_WALL_IDS = ImmutableSet.of(ObjectID.NTK_TOMB_DOOR1, ObjectID.NTK_TOMB_DOOR2, ObjectID.NTK_TOMB_DOOR3, ObjectID.NTK_TOMB_DOOR4);
+	static final Set<Integer> MUMMY_IDS = ImmutableSet.of(NpcID.NTK_MUMMY_1, NpcID.NTK_MUMMY_2, NpcID.NTK_MUMMY_3, NpcID.NTK_MUMMY_4, NpcID.NTK_MUMMY_5);
+	static final Set<Integer> SWARM_IDS = ImmutableSet.of(NpcID.NTK_SCARAB_SWARM);
 	static final int TOMB_DOOR_CLOSED_ID = ObjectID.NTK_TOMB_DOOR_NOANIM;
 	private static final String MESSAGE_DEAD_END = "This door leads to a dead end.";
+	private static final String MESSAGE_ALREADY_OPENED = "You've already opened this door and it leads to a dead end.";
 
 	@Getter
-	private final Map<TileObject, Tile> tilesToHighlight = new HashMap<>();
+	private final Map<TileObject, Door> allDoors = new HashMap<>();
+
+	@Getter
+	private Door activeDoor;
 
 	@Getter
 	private int currentFloor = -1;
@@ -64,13 +72,13 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	private PyramidPlunderDoorsConfig config;
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
-		//
+		reset();
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		reset();
 	}
@@ -80,7 +88,8 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		if (isInPyramidPlunder())
 		{
 			playerInteractions.clear();
-			tilesToHighlight.clear();
+			allDoors.clear();
+			clearActiveDoor();
 //			currentFloor = -1;
 		}
 	}
@@ -112,9 +121,14 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		}
 
 		final PlayerInteraction i = playerInteractions.getOrDefault(p.getName(), new PlayerInteraction(p.getName()));
+		final WorldPoint location = p.getWorldLocation();
 		i.setInteraction(InteractionState.OPENING_DOOR);
 		i.setTick(currentTick);
-		i.setLocation(p.getWorldLocation());
+		i.setLocation(location);
+
+		// attempt to find the door that the player is interacting with
+		final Door door = findClosestDoor(location);
+		i.setClosestDoor(door);
 
 		playerInteractions.put(p.getName(), i);
 	}
@@ -143,8 +157,8 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	public void onPlayerDespawned(PlayerDespawned e)
 	{
 		final String playerName = e.getPlayer().getName();
-		final PlayerInteraction interaction = playerInteractions.get(playerName);
-		if (interaction == null || currentFloor < 1 || !interaction.getInteraction().equals(InteractionState.OPENING_DOOR))
+		final PlayerInteraction interaction = getOpenDoorInteraction(playerName);
+		if (interaction == null)
 		{
 			return;
 		}
@@ -169,20 +183,20 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 			}
 
 			// first try to find door near the recorded player location
-			Tile tile = findClosestDoor(playerLocation);
+			Door door = interaction.closestDoor;
 
 			// if not found, try to find door near the despawn location
-			if (tile == null && !playerLocation.equals(despawnLocation))
+			if (door == null && !playerLocation.equals(despawnLocation))
 			{
 				log.debug("Player {} despawned at different location than interaction recorded ({} != {})", playerName, playerLocation, despawnLocation);
-				tile = findClosestDoor(despawnLocation);
+				door = findClosestDoor(despawnLocation);
 			}
 
 			// finally, set the hint arrow on the door
-			if (tile != null)
+			if (door != null)
 			{
-				log.debug("Player {} opened a door ({} ticks since, dist: {})", playerName, since, playerLocation.distanceTo(tile.getWorldLocation()));
-				client.setHintArrow(tile.getWorldLocation());
+				log.debug("Player {} opened a door ({} ticks since, dist: {})", playerName, since, playerLocation.distanceTo(door.getWorldLocation()));
+				setActiveDoor(door);
 			}
 			else
 			{
@@ -193,9 +207,21 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		}
 	}
 
-	Tile findClosestDoor(WorldPoint playerLocation)
+	void setActiveDoor(Door door)
 	{
-		Map<TileObject, Tile> tiles = getTilesToHighlight();
+		this.activeDoor = door;
+		client.setHintArrow(door.getWorldLocation());
+	}
+
+	void clearActiveDoor()
+	{
+		this.activeDoor = null;
+		client.clearHintArrow();
+	}
+
+	Door findClosestDoor(WorldPoint playerLocation)
+	{
+		Map<TileObject, Door> tiles = getAllDoors();
 
 		if (playerLocation == null || tiles.isEmpty())
 		{
@@ -204,25 +230,36 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		}
 
 		return tiles.values().stream()
-			.filter(tile -> {
+			.filter(door -> {
 				try
 				{
-					return tile != null && tile.getWorldLocation() != null;
+					return door != null && door.getWorldLocation() != null;
 				}
 				catch (NullPointerException e)
 				{
 					return false;
 				}
 			})
-			.map(tile -> new Object()
+			.map(door -> new Object()
 			{
-				final Tile t = tile;
-				final int distance = playerLocation.distanceTo(tile.getWorldLocation());
+				final Door d = door;
+				final int distance = playerLocation.distanceTo(d.getWorldLocation());
 			})
 			.filter(entry -> entry.distance <= TILE_THRESHOLD)
 			.min(Comparator.comparingInt(entry -> entry.distance))
-			.map(entry -> entry.t)
+			.map(entry -> entry.d)
 			.orElse(null);
+	}
+
+	PlayerInteraction getOpenDoorInteraction(String playerName)
+	{
+		final PlayerInteraction interaction = playerInteractions.get(playerName);
+		if (interaction == null || currentFloor < 1 || !interaction.getInteraction().equals(InteractionState.OPENING_DOOR))
+		{
+			return null;
+		}
+
+		return interaction;
 	}
 
 	@Subscribe
@@ -232,7 +269,28 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 
 		if (TOMB_DOOR_WALL_IDS.contains(object.getId()))
 		{
-			tilesToHighlight.put(object, event.getTile());
+			allDoors.put(object, new Door(object, event.getTile()));
+		}
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage e)
+	{
+		if (!isInPyramidPlunder() || e.getType() != ChatMessageType.GAMEMESSAGE)
+		{
+			return;
+		}
+
+		if ((e.getMessage().equals(MESSAGE_DEAD_END) || e.getMessage().equals(MESSAGE_ALREADY_OPENED)) && activeDoor != null)
+		{
+			final PlayerInteraction interaction = getOpenDoorInteraction(client.getLocalPlayer().getName());
+			if (interaction != null && interaction.closestDoor.equals(activeDoor))
+			{
+				log.debug("Dead end door detected at {}", activeDoor.getWorldLocation());
+				clearActiveDoor();
+			}
+
+			// TODO: remove this door from roomDoors
 		}
 	}
 
@@ -265,6 +323,7 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		private InteractionState interaction;
 		private int tick;
 		private WorldPoint location;
+		private Door closestDoor;
 	}
 
 	private enum InteractionState

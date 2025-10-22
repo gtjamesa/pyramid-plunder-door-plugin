@@ -3,6 +3,7 @@ package com.pyramidplunderdoors;
 import com.google.inject.Guice;
 import com.google.inject.testing.fieldbinder.Bind;
 import com.google.inject.testing.fieldbinder.BoundFieldModule;
+import com.pyramidplunderdoors.data.Door;
 import java.util.HashMap;
 import java.util.Map;
 import net.runelite.api.Client;
@@ -63,22 +64,22 @@ public class PyramidPlunderDoorsPluginTest
 		};
 
 		// Create test data for tilesToHighlight
-		Map<TileObject, Tile> mockTiles = new HashMap<>();
+		Map<TileObject, Door> mockTiles = new HashMap<>();
 
 		for (WorldPoint point : points)
 		{
 			TileObject mockTileObject = mock(TileObject.class);
 			Tile mockTile = mock(Tile.class);
 			when(mockTile.getWorldLocation()).thenReturn(point);
-			mockTiles.put(mockTileObject, mockTile);
+			mockTiles.put(mockTileObject, new Door(mockTileObject, mockTile));
 		}
 
 		// Add a null tile object to test null handling
 		TileObject mockTileObject = mock(TileObject.class);
 		mockTiles.put(mockTileObject, null);
 
-		// Stub the getTilesToHighlight() method
-		doReturn(mockTiles).when(plugin).getTilesToHighlight();
+		// Stub the getAllDoors() method
+		doReturn(mockTiles).when(plugin).getAllDoors();
 	}
 
 	@Test
@@ -87,9 +88,9 @@ public class PyramidPlunderDoorsPluginTest
 		setUpDoorTiles();
 
 		// player is 1 tile away from the closest door at (1932, 4466, 0)
-		Tile res = plugin.findClosestDoor(new WorldPoint(1931, 4466, 0));
+		Door res = plugin.findClosestDoor(new WorldPoint(1931, 4466, 0));
 		assertNotNull(res);
-		assertEquals(1932, res.getWorldLocation().getX());
-		assertEquals(4466, res.getWorldLocation().getY());
+		assertEquals(1932, res.getTile().getWorldLocation().getX());
+		assertEquals(4466, res.getTile().getWorldLocation().getY());
 	}
 }
