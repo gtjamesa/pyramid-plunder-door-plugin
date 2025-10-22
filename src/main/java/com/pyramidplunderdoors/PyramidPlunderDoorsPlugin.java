@@ -36,11 +36,11 @@ import net.runelite.client.plugins.PluginDescriptor;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Pyramid Plunder Doors"
+	name = "Pyramid Plunder QoL"
 )
 public class PyramidPlunderDoorsPlugin extends Plugin
 {
-	public static final String CONFIG_GROUP = "pyramidplunderdoors";
+	public static final String CONFIG_GROUP = "pyramidplunderqol";
 	private static final int SEARCH_TRAPDOOR_ANIMATION = AnimationID.HUMAN_PICKUPTABLE;
 	private static final int PYRAMID_PLUNDER_REGION = 7749;
 	private static final int TICK_THRESHOLD = 4;
