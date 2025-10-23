@@ -3,6 +3,7 @@ package com.pyramidplunderdoors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Provides;
+import com.pyramidplunderdoors.config.CustomChatMessage;
 import com.pyramidplunderdoors.config.RemoveNpc;
 import com.pyramidplunderdoors.data.Door;
 import com.pyramidplunderdoors.data.Room;
@@ -24,6 +25,7 @@ import net.runelite.api.Player;
 import net.runelite.api.Renderable;
 import net.runelite.api.TileObject;
 import net.runelite.api.WallObject;
+import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
@@ -60,9 +62,11 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	static final Set<Integer> TOMB_DOOR_WALL_IDS = ImmutableSet.of(ObjectID.NTK_TOMB_DOOR1, ObjectID.NTK_TOMB_DOOR2, ObjectID.NTK_TOMB_DOOR3, ObjectID.NTK_TOMB_DOOR4);
 	static final Set<Integer> MUMMY_IDS = ImmutableSet.of(NpcID.NTK_MUMMY_1, NpcID.NTK_MUMMY_2, NpcID.NTK_MUMMY_3, NpcID.NTK_MUMMY_4, NpcID.NTK_MUMMY_5);
 	static final Set<Integer> SWARM_IDS = ImmutableSet.of(NpcID.NTK_SCARAB_SWARM);
-	static final int TOMB_DOOR_CLOSED_ID = ObjectID.NTK_TOMB_DOOR_NOANIM;
+	private static WorldArea spawnLocation = new WorldArea(1922, 4474, 10, 6, 0);
 	private static final String MESSAGE_DEAD_END = "This door leads to a dead end.";
 	private static final String MESSAGE_ALREADY_OPENED = "You've already opened this door and it leads to a dead end.";
+	private static final String CUSTOM_MESSAGE_DOORS_RESET = "You hear a distant rumbling as the locks change...";
+	private static final String CUSTOM_MESSAGE_PLAYER_OPENED_DOOR = "Door opened by %s";
 
 	@Getter
 	private final Map<TileObject, Door> allDoors = new HashMap<>();
@@ -166,7 +170,16 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	@Subscribe
 	public void onPlayerSpawned(PlayerSpawned e)
 	{
-//		log.debug("Player spawned: {}", e.getPlayer().getName());
+		if (isInPyramidPlunder() && spawnLocation.contains(e.getPlayer().getWorldLocation()))
+		{
+			if (activeDoor != null && config.chatMessageInfo().contains(CustomChatMessage.DOORS_RESET))
+			{
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", CUSTOM_MESSAGE_DOORS_RESET, null);
+			}
+
+			clearActiveDoor();
+			log.debug("Clearing active door, {} spawned", e.getPlayer().getName());
+		}
 	}
 
 	@Subscribe
@@ -193,11 +206,6 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		// recent door open in the current room as the local player
 		if (currentRoom != null && currentRoom.contains(playerLocation))
 		{
-			if (config.showChatMessage())
-			{
-				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Door opened by " + playerName, null);
-			}
-
 			// first try to find door near the recorded player location
 			Door door = interaction.closestDoor;
 
@@ -212,6 +220,12 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 			if (door != null)
 			{
 				log.debug("Player {} opened a door ({} ticks since, dist: {})", playerName, since, playerLocation.distanceTo(door.getWorldLocation()));
+
+				if ((activeDoor == null || !activeDoor.equals(door)) && config.chatMessageInfo().contains(CustomChatMessage.PLAYER_OPENED_DOOR))
+				{
+					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", String.format(CUSTOM_MESSAGE_PLAYER_OPENED_DOOR, playerName), null);
+				}
+
 				setActiveDoor(door);
 			}
 			else
