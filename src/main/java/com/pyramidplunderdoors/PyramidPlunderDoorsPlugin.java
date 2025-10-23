@@ -351,15 +351,10 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 			// get player the npc is targeting and remove if not the local player
 			// we'll use the tracked npc index as this will use the target at spawn time
 			// if we have no entry, we'll default to the current interacting target
-			String interactingName = npc.getInteracting() != null ? npc.getInteracting().getName() : null;
-			String targetPlayer = getGuardians().getOrDefault(npc.getIndex(), interactingName);
-
-			// tagged npc was "null" to start, and may now be targeting a player, we should update the tag (once)
-			if (targetPlayer == null && interactingName != null)
-			{
-				targetPlayer = interactingName;
-				guardians.put(npc.getIndex(), targetPlayer);
-			}
+			String targetPlayer = getGuardians().getOrDefault(
+				npc.getIndex(),
+				npc.getInteracting() != null ? npc.getInteracting().getName() : null
+			);
 
 			return Objects.equals(targetPlayer, playerName);
 		}

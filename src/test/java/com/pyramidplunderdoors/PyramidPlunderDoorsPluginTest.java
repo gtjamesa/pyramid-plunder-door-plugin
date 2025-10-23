@@ -181,22 +181,39 @@ public class PyramidPlunderDoorsPluginTest
 	}
 
 	@Test
-	public void shouldUpdateTaggedNpc()
+	public void shouldRespectTaggedNpc()
 	{
 		setUpNpcHiding();
 		setUpTaggedNpcs();
 
 		when(config.removeNpcs()).thenReturn(RemoveNpc.OTHER_PLAYERS);
 
-		NPC npc1 = mockNpcInteract("OtherPlayer", 1); // interacting with another player (hide=true)
-		NPC npc2 = mockNpcInteract(null, 3); // interacting with null (hide=true)
+		NPC npc1 = mockNpcInteract("LocalPlayer", 1); // now interacting with local player (hide=true)
+		NPC npc2 = mockNpcInteract(null, 2); // interacting with null (hide=true)
+		NPC npc3 = mockNpcInteract("LocalPlayer", 3); // interacting with local player (hide=false)
 
-		// interacting with local player (hide=false)
-		// this npc was tagged as "null" on spawn (idx: 2), but is now interacting with local player
-		NPC npc3 = mockNpcInteract("LocalPlayer", 2);
-
-		assertFalse(plugin.shouldDraw(npc1, false));
-		assertTrue(plugin.shouldDraw(npc2, false)); // idx3 is LocalPlayer
-		assertTrue(plugin.shouldDraw(npc3, false)); // idx2 is null -> LocalPlayer
+		assertFalse(plugin.shouldDraw(npc1, false)); // idx1 = OtherPlayer -> LocalPlayer, sticks as OtherPlayer
+		assertFalse(plugin.shouldDraw(npc2, false)); // idx2 = null
+		assertTrue(plugin.shouldDraw(npc3, false)); // idx3 = null -> LocalPlayer
 	}
+
+//	@Test
+//	public void shouldUpdateTaggedNpc()
+//	{
+//		setUpNpcHiding();
+//		setUpTaggedNpcs();
+//
+//		when(config.removeNpcs()).thenReturn(RemoveNpc.OTHER_PLAYERS);
+//
+//		NPC npc1 = mockNpcInteract("OtherPlayer", 1); // interacting with another player (hide=true)
+//		NPC npc2 = mockNpcInteract(null, 3); // interacting with null (hide=true)
+//
+//		// interacting with local player (hide=false)
+//		// this npc was tagged as "null" on spawn (idx: 2), but is now interacting with local player
+//		NPC npc3 = mockNpcInteract("LocalPlayer", 2);
+//
+//		assertFalse(plugin.shouldDraw(npc1, false));
+//		assertTrue(plugin.shouldDraw(npc2, false)); // idx3 is LocalPlayer
+//		assertTrue(plugin.shouldDraw(npc3, false)); // idx2 is null -> LocalPlayer
+//	}
 }
