@@ -57,7 +57,6 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	private static final int TICK_THRESHOLD = 4;
 	private static final int TILE_THRESHOLD = 3;
 	private final HashMap<String, PlayerInteraction> playerInteractions = new HashMap<>();
-	private final HashMap<Integer, String> guardians = new HashMap<>();
 
 	static final Set<Integer> TOMB_DOOR_WALL_IDS = ImmutableSet.of(ObjectID.NTK_TOMB_DOOR1, ObjectID.NTK_TOMB_DOOR2, ObjectID.NTK_TOMB_DOOR3, ObjectID.NTK_TOMB_DOOR4);
 	static final Set<Integer> MUMMY_IDS = ImmutableSet.of(NpcID.NTK_MUMMY_1, NpcID.NTK_MUMMY_2, NpcID.NTK_MUMMY_3, NpcID.NTK_MUMMY_4, NpcID.NTK_MUMMY_5);
@@ -76,6 +75,10 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 
 	@Getter
 	private int currentFloor = -1;
+
+	@Getter
+	@VisibleForTesting
+	private final HashMap<Integer, String> guardians = new HashMap<>();
 
 	@Inject
 	private Client client;
@@ -348,10 +351,15 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 			// get player the npc is targeting and remove if not the local player
 			// we'll use the tracked npc index as this will use the target at spawn time
 			// if we have no entry, we'll default to the current interacting target
-			String targetPlayer = guardians.getOrDefault(
-				npc.getIndex(),
-				npc.getInteracting() != null ? npc.getInteracting().getName() : null
-			);
+			String interactingName = npc.getInteracting() != null ? npc.getInteracting().getName() : null;
+			String targetPlayer = getGuardians().getOrDefault(npc.getIndex(), interactingName);
+
+			// tagged npc was "null" to start, and may now be targeting a player, we should update the tag (once)
+			if (targetPlayer == null && interactingName != null)
+			{
+				targetPlayer = interactingName;
+				guardians.put(npc.getIndex(), targetPlayer);
+			}
 
 			return Objects.equals(targetPlayer, playerName);
 		}
