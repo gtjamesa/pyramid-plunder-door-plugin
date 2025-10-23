@@ -101,13 +101,33 @@ public class PyramidPlunderDoorsPluginTest
 		assertEquals(4466, res.getTile().getWorldLocation().getY());
 	}
 
+	private void setUpNpcHiding()
+	{
+		doReturn(true).when(plugin).isInPyramidPlunder();
+
+		Player player = mock(Player.class);
+		when(player.getName()).thenReturn("LocalPlayer");
+		when(client.getLocalPlayer()).thenReturn(player);
+	}
+
+	private NPC mockNpcInteract(String playerName)
+	{
+		NPC npc = mock(NPC.class);
+		when(npc.getId()).thenReturn(7661);
+		Actor interacting = mock(Actor.class);
+		when(interacting.getName()).thenReturn(playerName);
+		when(npc.getInteracting()).thenReturn(interacting);
+
+		return npc;
+	}
+
 	@Test
 	public void shouldHideNoNpcs()
 	{
-		doReturn(true).when(plugin).isInPyramidPlunder();
+		setUpNpcHiding();
 		when(config.removeNpcs()).thenReturn(RemoveNpc.NONE);
 
-		NPC npc = mock(NPC.class);
+		NPC npc = mockNpcInteract("LocalPlayer");
 
 		boolean res = plugin.shouldDraw(npc, false);
 		assertTrue(res);
@@ -116,15 +136,10 @@ public class PyramidPlunderDoorsPluginTest
 	@Test
 	public void shouldHideAllNpcs()
 	{
-		doReturn(true).when(plugin).isInPyramidPlunder();
+		setUpNpcHiding();
 		when(config.removeNpcs()).thenReturn(RemoveNpc.ALL);
 
-		Player player = mock(Player.class);
-		when(player.getName()).thenReturn("LocalPlayer");
-		when(client.getLocalPlayer()).thenReturn(player);
-
-		NPC npc = mock(NPC.class);
-		when(npc.getId()).thenReturn(7661);
+		NPC npc = mockNpcInteract("LocalPlayer");
 
 		boolean res = plugin.shouldDraw(npc, false);
 		assertFalse(res);
@@ -133,33 +148,12 @@ public class PyramidPlunderDoorsPluginTest
 	@Test
 	public void shouldHideOtherNpcs()
 	{
-		doReturn(true).when(plugin).isInPyramidPlunder();
+		setUpNpcHiding();
 		when(config.removeNpcs()).thenReturn(RemoveNpc.OTHER_PLAYERS);
 
-		Player player = mock(Player.class);
-		when(player.getName()).thenReturn("LocalPlayer");
-		when(client.getLocalPlayer()).thenReturn(player);
-
-		// interacting with another player (hide=true)
-		NPC npc1 = mock(NPC.class);
-		when(npc1.getId()).thenReturn(7661);
-		Actor interacting1 = mock(Actor.class);
-		when(interacting1.getName()).thenReturn("OtherPlayer");
-		when(npc1.getInteracting()).thenReturn(interacting1);
-
-		// interacting with null (hide=true)
-		NPC npc2 = mock(NPC.class);
-		when(npc2.getId()).thenReturn(7661);
-		Actor interacting2 = mock(Actor.class);
-		when(interacting2.getName()).thenReturn(null);
-		when(npc2.getInteracting()).thenReturn(interacting2);
-
-		// interacting with local player (hide=false)
-		NPC npc3 = mock(NPC.class);
-		when(npc3.getId()).thenReturn(7661);
-		Actor interacting3 = mock(Actor.class);
-		when(interacting3.getName()).thenReturn("LocalPlayer");
-		when(npc3.getInteracting()).thenReturn(interacting3);
+		NPC npc1 = mockNpcInteract("OtherPlayer"); // interacting with another player (hide=true)
+		NPC npc2 = mockNpcInteract(null); // interacting with null (hide=true)
+		NPC npc3 = mockNpcInteract("LocalPlayer"); // interacting with local player (hide=false)
 
 		assertFalse(plugin.shouldDraw(npc1, false));
 		assertFalse(plugin.shouldDraw(npc2, false));
