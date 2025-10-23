@@ -6,6 +6,7 @@ import com.google.inject.Provides;
 import com.pyramidplunderdoors.config.CustomChatMessage;
 import com.pyramidplunderdoors.config.RemoveNpc;
 import com.pyramidplunderdoors.data.Door;
+import com.pyramidplunderdoors.data.Guardian;
 import com.pyramidplunderdoors.data.Room;
 import com.pyramidplunderdoors.data.Rooms;
 import java.util.Comparator;
@@ -30,6 +31,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.NpcSpawned;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.api.events.PlayerSpawned;
@@ -54,8 +56,9 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	public static final String CONFIG_GROUP = "pyramidplunderqol";
 	private static final int SEARCH_TRAPDOOR_ANIMATION = AnimationID.HUMAN_PICKUPTABLE;
 	private static final int PYRAMID_PLUNDER_REGION = 7749;
-	private static final int TICK_THRESHOLD = 4;
+	private static final int INTERACTION_THRESHOLD = 4;
 	private static final int TILE_THRESHOLD = 3;
+	private static final int NPC_SPAWN_THRESHOLD = 2;
 	private final HashMap<String, PlayerInteraction> playerInteractions = new HashMap<>();
 
 	static final Set<Integer> TOMB_DOOR_WALL_IDS = ImmutableSet.of(ObjectID.NTK_TOMB_DOOR1, ObjectID.NTK_TOMB_DOOR2, ObjectID.NTK_TOMB_DOOR3, ObjectID.NTK_TOMB_DOOR4);
@@ -79,6 +82,7 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 	@Getter
 	@VisibleForTesting
 	private final HashMap<Integer, String> guardians = new HashMap<>();
+	private final HashMap<Integer, Guardian> guardiansToCheck = new HashMap<>();
 
 	@Inject
 	private Client client;
@@ -196,7 +200,7 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		}
 
 		final int since = client.getTickCount() - interaction.getTick();
-		if (since > TICK_THRESHOLD)
+		if (since > INTERACTION_THRESHOLD)
 		{
 			playerInteractions.remove(playerName);
 			return;
@@ -317,7 +321,44 @@ public class PyramidPlunderDoorsPlugin extends Plugin
 		NPC npc = e.getNpc();
 		if (MUMMY_IDS.contains(npc.getId()) || SWARM_IDS.contains(npc.getId()))
 		{
-			guardians.put(npc.getIndex(), npc.getInteracting() != null ? npc.getInteracting().getName() : null);
+			final String targetName = npc.getInteracting() != null ? npc.getInteracting().getName() : null;
+			guardians.put(npc.getIndex(), targetName);
+
+			if (targetName == null)
+			{
+				log.debug("Tracking guardian npc index {} for null target player", npc.getIndex());
+				final Guardian guardian = new Guardian(npc);
+				guardian.setSpawnTick(client.getTickCount());
+				guardiansToCheck.put(npc.getIndex(), guardian);
+			}
+		}
+	}
+
+	@Subscribe
+	public void onGameTick(GameTick e)
+	{
+		if (!isInPyramidPlunder() || guardiansToCheck.isEmpty())
+		{
+			return;
+		}
+
+		final int currentTick = client.getTickCount();
+		for (Map.Entry<Integer, Guardian> entry : guardiansToCheck.entrySet())
+		{
+			final Guardian guardian = entry.getValue();
+			final int since = currentTick - guardian.getSpawnTick();
+
+			if (since >= NPC_SPAWN_THRESHOLD)
+			{
+				final NPC npc = guardian.getNpc();
+//				final String targetName = npc.getInteracting() != null ? npc.getInteracting().getName() : null;
+				final String targetName = guardian.getTargetPlayerName();
+				final NPC npcUpdated = client.getTopLevelWorldView().npcs().byIndex(guardian.getNpcIndex());
+				guardians.put(npc.getIndex(), targetName);
+				log.debug("Updated guardian npc index {} target player to '{}' ({}) after {} ticks", npc.getIndex(), targetName, npcUpdated.getInteracting() != null ? npcUpdated.getInteracting().getName() : null, since);
+
+				guardiansToCheck.remove(entry.getKey());
+			}
 		}
 	}
 
