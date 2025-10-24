@@ -1,13 +1,9 @@
 package com.pyramidplunderdoors.data;
 
-import com.google.inject.Guice;
-import com.google.inject.testing.fieldbinder.Bind;
-import com.google.inject.testing.fieldbinder.BoundFieldModule;
 import net.runelite.api.Client;
 import net.runelite.api.coords.WorldPoint;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -17,14 +13,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 public class RoomsTest
 {
 	@Mock
-	@Bind
 	private Client client;
-
-	@Before
-	public void before()
-	{
-		Guice.createInjector(BoundFieldModule.of(this)).injectMembers(this);
-	}
 
 	@Test
 	public void shouldGetRoomByFloor()

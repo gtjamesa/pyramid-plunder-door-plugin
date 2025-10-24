@@ -1,8 +1,5 @@
 package com.pyramidplunderdoors;
 
-import com.google.inject.Guice;
-import com.google.inject.testing.fieldbinder.Bind;
-import com.google.inject.testing.fieldbinder.BoundFieldModule;
 import com.pyramidplunderdoors.config.RemoveNpc;
 import com.pyramidplunderdoors.data.Door;
 import java.util.HashMap;
@@ -18,7 +15,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -33,21 +29,13 @@ import org.mockito.junit.MockitoJUnitRunner;
 public class PyramidPlunderDoorsPluginTest
 {
 	@Mock
-	@Bind
 	private Client client;
 
 	@Mock
-	@Bind
 	private PyramidPlunderDoorsConfig config;
 
 	@InjectMocks
 	PyramidPlunderDoorsPlugin plugin = spy(new PyramidPlunderDoorsPlugin());
-
-	@Before
-	public void before()
-	{
-		Guice.createInjector(BoundFieldModule.of(this)).injectMembers(this);
-	}
 
 	private void setUpDoorTiles()
 	{
